@@ -248,36 +248,6 @@ const FeedPage = () => {
     isFiltered: false,
   });
 
-  const queryName = "${REPL_PROPOSAL_FEED_INDEXER_QUERY_NAME}";
-  const query = `query GetLatestSnapshot($offset: Int = 0, $limit: Int = 10, $where: ${queryName}_bool_exp = {}) {
-    ${queryName}(
-      offset: $offset
-      limit: $limit
-      order_by: {proposal_id: desc}
-      where: $where
-    ) {
-      author_id
-      block_height
-      name
-      labels
-      summary
-      editor_id
-      proposal_id
-      ts
-      timeline
-      views
-      linked_rfp
-    }
-    ${queryName}_aggregate(
-      order_by: {proposal_id: desc}
-      where: $where
-    )  {
-      aggregate {
-        count
-      }
-    }
-  }`;
-
   const rfpQueryName = "${REPL_RFP_FEED_INDEXER_QUERY_NAME}";
   const rfpQuery = `query GetLatestSnapshot($offset: Int = 0, $limit: Int = 10, $where: ${rfpQueryName}_bool_exp = {}) {
     ${rfpQueryName}(
@@ -340,10 +310,23 @@ const FeedPage = () => {
 
   const buildOrderByClause = () => {
     /**
-     * TODO
+     * TODO:
      * Most commented -> edit contract and indexer
      * Unanswered -> 0 comments
      */
+    let order_by = "{proposal_id: desc}";
+
+    if (state.sort) {
+      if (state.sort === "proposal_id" || state.sort === "") {
+        order_by = "{proposal_id: desc}";
+      } else if (state.sort === "oldest") {
+        order_by = "{proposal_id: asc}";
+      } else if (state.sort === "views") {
+        order_by = "{views: desc}"; // Adjust as needed, 'desc' can be used too.
+      }
+    }
+
+    return order_by;
   };
 
   const makeMoreItems = () => {
@@ -362,6 +345,40 @@ const FeedPage = () => {
       offset,
       where: buildWhereClause(),
     };
+
+    // Moved 'const query' with 'order_by' as string insertion here because the indexer expects asc or desc as a enum type.
+    // If you add 'order_by: buildOrderByClause()' to variables
+    const order_by = buildOrderByClause()
+    const queryName = "${REPL_PROPOSAL_FEED_INDEXER_QUERY_NAME}";
+    const query = `query GetLatestSnapshot($offset: Int = 0, $limit: Int = 10, $where: ${queryName}_bool_exp = {}) {
+      ${queryName}(
+        offset: $offset
+        limit: $limit
+        order_by: ${order_by}
+        where: $where
+      ) {
+        author_id
+        block_height
+        name
+        labels
+        summary
+        editor_id
+        proposal_id
+        ts
+        timeline
+        views
+        linked_rfp
+      }
+      ${queryName}_aggregate(
+        order_by: ${order_by}
+        where: $where
+      )  {
+        aggregate {
+          count
+        }
+      }
+    }`;
+
     if (typeof fetchGraphQL !== "function") {
       return;
     }
@@ -426,12 +443,6 @@ const FeedPage = () => {
     const items = [
       ...new Set([...newItems, ...state.data].map((i) => JSON.stringify(i))),
     ].map((i) => JSON.parse(i));
-    // Sorting in the front end
-    if (state.sort === "proposal_id" || state.sort === "") {
-      items.sort((a, b) => b.proposal_id - a.proposal_id);
-    } else if (state.sort === "views") {
-      items.sort((a, b) => b.views - a.views);
-    }
 
     return items;
   };
@@ -445,20 +456,12 @@ const FeedPage = () => {
         social_db_post_block_height:
           blockHeights[index].social_db_post_block_height,
       }));
-      if (offset) {
-        let newData = mergeItems(data);
-        State.update({
-          data: newData,
-          currentlyDisplaying: newData.length,
-          loading: false,
-        });
-      } else {
-        State.update({
-          data,
-          currentlyDisplaying: data.length,
-          loading: false,
-        });
-      }
+      let newData = mergeItems(data);
+      State.update({
+        data: newData,
+        currentlyDisplaying: newData.length,
+        loading: false,
+      });
     });
   };
 

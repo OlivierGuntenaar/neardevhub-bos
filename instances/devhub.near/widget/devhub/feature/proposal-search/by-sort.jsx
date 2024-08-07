@@ -1,6 +1,7 @@
 const options = [
   { label: "All", value: "" },
   { label: "Most recent", value: "proposal_id" }, // proposal_id desc
+  { label: "Oldest", value: "oldest" }, // proposal_id asc
   { label: "Most viewed", value: "views" }, // views desc
   // TODO add track_comments function to devhub to track it in the indexer
   // { label: "Most commented", value: "" }, // comments desc
